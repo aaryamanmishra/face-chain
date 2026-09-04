@@ -1,0 +1,42 @@
+# face-chain — .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Environment secrets
+.env
+
+# InsightFace model cache
+.insightface/
+
+# Pipeline outputs (optionally tracked; uncomment to ignore)
+# downloads/
+# results/
+# chain/
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.venv/
+.env
+__pycache__/
+*.pyc
+
+downloads/
+results/
+chain/blockchain.json
+
+uploads/*
+!uploads/.gitkeep
