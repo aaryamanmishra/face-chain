@@ -10,6 +10,11 @@ opencv-python>=4.9.0.80
 numpy>=1.26.0
 Pillow>=10.3.0
 
+# Experimental deepfake classifier; heavy dependencies (~1-2GB with model weights).
+# The first run downloads model weights from Hugging Face.
+torch>=2.2.0
+transformers>=4.40.0
+
 # HTTP / Search
 requests>=2.31.0
 google-search-results>=2.4.2  # SerpAPI official SDK

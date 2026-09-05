@@ -85,6 +85,24 @@ from blockchain.blockchain import Blockchain
 from blockchain.verify import verify_evidence, VerificationResult
 from utils.hashing import generate_hash, hash_file
 from utils.social_media import annotate_platform, filter_social_media, is_specific_post
+from utils.trust_signals import (
+    annotate_trust_signals,
+    detect_video_content,
+    evaluate_content_corroboration,
+    FRAME_EXTRACTION_NOTE,
+)
+
+# Deepfake detection — optional; gracefully absent when transformers/torch not installed
+try:
+    from utils.deepfake_detector import (
+        analyze_deepfake_risk,
+        is_suspicious_deepfake,
+        DEFAULT_SUSPICIOUS_CONFIDENCE_THRESHOLD,
+    )
+    _DEEPFAKE_DETECTOR_AVAILABLE = True
+except ImportError:
+    _DEEPFAKE_DETECTOR_AVAILABLE = False
+    logger.debug("deepfake_detector not available — deepfake analysis will be skipped.")
 
 # Testnet anchoring — optional; gracefully absent when web3 is not installed.
 try:
@@ -363,6 +381,38 @@ def run_pipeline(
             "     No social media candidates found among the search results."
         )
 
+    # ────────────────────────── Step 6c: annotate trust & corroboration signals
+    logger.info("[5c] Annotating trust signals (video detection & content corroboration)…")
+    # NOTE: identity_context is currently never passed from app.py,
+    # so "HIGH" is a reserved-for-future-use value — this is intentional, not a bug.
+    for candidate in ranked:
+        annotate_trust_signals(candidate, identity_context=None)
+
+    # 'primary' refers to whichever candidate match evidence_record is actually
+    # built from: best_social (best_social_match where is_specific_post is True
+    # and present), else falls back to best (overall best_match).
+    # Generic social pages (popular/, explore, hashtag…) are never used.
+    primary = best_social if best_social is not None else best
+    evidence_is_specific_post: bool = best_social is not None
+
+    # ─────────────────────── Step 6d: deepfake risk analysis on primary candidate
+    logger.info("[5d] Analyzing deepfake risk on primary candidate image…")
+    primary_image_path = primary.get("image_path", "")
+    if _DEEPFAKE_DETECTOR_AVAILABLE and primary_image_path:
+        deepfake_analysis = analyze_deepfake_risk(primary_image_path)
+    else:
+        deepfake_analysis = {
+            "deepfake_analysis_available": False,
+            "predicted_label": None,
+            "confidence": None,
+            "note": (
+                "Prediction from a single-frame image classifier trained primarily on full-face swap "
+                "deepfakes. May not reliably detect region-specific manipulation such as lip-sync/reenactment. "
+                "Treat as a probabilistic signal, not a determination. (Deepfake detector module not available)"
+            ),
+        }
+    primary["deepfake_analysis"] = deepfake_analysis
+
     # ─────────────────────────────────── Step 7: SHA-256 hash of source image
     logger.info("[6/9] Building evidence record…")
     try:
@@ -370,12 +420,6 @@ def run_pipeline(
     except (FileNotFoundError, IOError) as exc:
         logger.warning("Could not hash source image file: %s", exc)
         source_image_hash = None
-
-    # The primary evidence record anchors to the best SPECIFIC SOCIAL POST
-    # when one exists; falls back to overall best otherwise.
-    # Generic social pages (popular/, explore, hashtag…) are never used.
-    primary = best_social if best_social is not None else best
-    evidence_is_specific_post: bool = best_social is not None
 
     evidence_record = _build_evidence_record(
         source_image=str(image_path),
@@ -386,6 +430,45 @@ def run_pipeline(
         platform=primary.get("platform"),
         source_image_hash=source_image_hash,
     )
+
+    # Explicitly inject trust signals and deepfake analysis into evidence_record BEFORE generate_hash:
+    # This guarantees that content_corroboration, is_video_content, frame_extraction_note,
+    # and deepfake_analysis are included in the hashed payload BEFORE
+    # generate_hash(evidence_record) is called, BEFORE the local blockchain block
+    # is created, and BEFORE the Ethereum Sepolia anchor_hash() call.
+    evidence_record["content_corroboration"] = primary.get("content_corroboration", "UNKNOWN")
+    evidence_record["is_video_content"] = primary.get("is_video_content", False)
+    if primary.get("is_video_content") and primary.get("frame_extraction_note"):
+        evidence_record["frame_extraction_note"] = primary["frame_extraction_note"]
+    evidence_record["deepfake_analysis"] = deepfake_analysis
+    evidence_record.update(deepfake_analysis)
+
+    # Warning check on selected evidence match
+    if evidence_record["content_corroboration"] == "LOW" or evidence_record["is_video_content"]:
+        logger.warning(
+            "⚠ CAUTION: Selected match has LOW content corroboration and/or is "
+            "video-derived. Treat as a candidate for manual review, not a confirmed "
+            "identity match."
+        )
+        print(
+            "\n  ⚠ CAUTION: Selected match has LOW content corroboration and/or is "
+            "video-derived.\n             Treat as a candidate for manual review, "
+            "not a confirmed identity match.\n"
+        )
+
+    # Deepfake risk alert: appended to caution warning
+    if _DEEPFAKE_DETECTOR_AVAILABLE and is_suspicious_deepfake(deepfake_analysis, DEFAULT_SUSPICIOUS_CONFIDENCE_THRESHOLD):
+        conf_pct = (
+            f"{deepfake_analysis['confidence'] * 100:.1f}%"
+            if deepfake_analysis.get("confidence") is not None
+            else "N/A"
+        )
+        df_msg = (
+            f"⚠ Deepfake classifier flagged this image as likely synthetic (confidence: {conf_pct}). "
+            "Combine with content corroboration and video-content flags above before drawing conclusions."
+        )
+        logger.warning(df_msg)
+        print(f"  {df_msg}\n")
 
     # ───────────────────────────────────── Step 8: hash evidence record
     logger.info("[7/9] Hashing evidence record (SHA-256)…")
@@ -404,7 +487,16 @@ def run_pipeline(
         "source_image": evidence_record["source_image"],
         "source_image_hash": source_image_hash,
         "evidence_is_specific_post": evidence_is_specific_post,
+        "content_corroboration": evidence_record["content_corroboration"],
+        "is_video_content": evidence_record["is_video_content"],
+        "deepfake_analysis": deepfake_analysis,
+        "deepfake_analysis_available": deepfake_analysis["deepfake_analysis_available"],
+        "predicted_label": deepfake_analysis["predicted_label"],
+        "confidence": deepfake_analysis["confidence"],
+        "note": deepfake_analysis["note"],
     }
+    if "frame_extraction_note" in evidence_record:
+        block_data["frame_extraction_note"] = evidence_record["frame_extraction_note"]
     if evidence_record.get("platform"):
         block_data["platform"] = evidence_record["platform"]
 
@@ -471,6 +563,13 @@ def run_pipeline(
             "source": best.get("source", ""),
             "platform": best.get("platform"),
             "is_specific_post": best.get("is_specific_post", False),
+            "deepfake_analysis": deepfake_analysis if primary is best else None,
+            "deepfake_analysis_available": (
+                deepfake_analysis["deepfake_analysis_available"] if primary is best else None
+            ),
+            "predicted_label": deepfake_analysis["predicted_label"] if primary is best else None,
+            "confidence": deepfake_analysis["confidence"] if primary is best else None,
+            "note": deepfake_analysis["note"] if primary is best else None,
         },
         # ── best verified SPECIFIC social-media post
         "best_social_match": (
@@ -482,6 +581,21 @@ def run_pipeline(
                 "image_path": best_social.get("image_path", ""),
                 "title": best_social.get("title", ""),
                 "is_specific_post": True,
+                "deepfake_analysis": deepfake_analysis if primary is best_social else None,
+                "deepfake_analysis_available": (
+                    deepfake_analysis["deepfake_analysis_available"]
+                    if primary is best_social
+                    else None
+                ),
+                "predicted_label": (
+                    deepfake_analysis["predicted_label"] if primary is best_social else None
+                ),
+                "confidence": (
+                    deepfake_analysis["confidence"] if primary is best_social else None
+                ),
+                "note": (
+                    deepfake_analysis["note"] if primary is best_social else None
+                ),
             }
             if best_social
             else None
@@ -598,6 +712,17 @@ def _print_summary(result: dict[str, Any]) -> None:
     print(f"  Evidence URL       : {ev.get('matched_url', 'N/A')}")
     print(f"  Evidence Platform  : {ev.get('platform', 'General Web')}")
     print(f"  Evidence Similarity: {ev.get('similarity', 0):.4f}")
+    deepfake = ev.get("deepfake_analysis", {})
+    deepfake_status = "available" if deepfake.get("deepfake_analysis_available") else "unavailable"
+    deepfake_label = deepfake.get("predicted_label") or "N/A"
+    deepfake_confidence = deepfake.get("confidence")
+    deepfake_confidence_text = (
+        f"{deepfake_confidence:.4f}" if deepfake_confidence is not None else "N/A"
+    )
+    print(
+        f"  Deepfake Analysis : {deepfake_status} | label={deepfake_label} | "
+        f"confidence={deepfake_confidence_text}"
+    )
     if result.get("source_image_hash"):
         print(f"  Source Image SHA256: {result['source_image_hash'][:32]}…")
     print(f"  Evidence Hash      : {result['evidence_hash']}")

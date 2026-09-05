@@ -58,6 +58,9 @@ Specific Social-Media URL Detection
 Best Verified Social-Media Post
      |
      v
+Experimental Deepfake-Likelihood Signal
+     |
+     v
 Evidence Record
      |
      v
@@ -82,6 +85,11 @@ Install the Python dependencies (Python 3.11+ recommended):
 ```bash
 pip install -r requirements.txt
 ```
+
+The experimental deepfake detector adds heavy `torch` and `transformers`
+dependencies (approximately 1-2 GB including model weights). Its first use
+downloads the model weights from Hugging Face. Run the pipeline once before a
+live demo or recording to warm the local cache and avoid a live download delay.
 
 ### 2. Configuration
 
@@ -108,8 +116,9 @@ The pipeline will automatically:
 1. Extract face embeddings.
 2. Search for the face online.
 3. Verify the candidates and rank them.
-4. Generate an evidence hash and save it to the local blockchain (`chain/blockchain.json`).
-5. Send a transaction to the Sepolia testnet to anchor the hash.
+4. Add an experimental deepfake-likelihood signal to the selected candidate.
+5. Generate an evidence hash and save it to the local blockchain (`chain/blockchain.json`).
+6. Send a transaction to the Sepolia testnet to anchor the hash.
 
 ### 4. Verifying on the Blockchain
 
@@ -126,6 +135,24 @@ Or, you can use the `check.py` script to automatically verify the latest run fro
 ```bash
 python check.py
 ```
+
+## Deepfake Detection (Experimental)
+
+The pipeline optionally uses the Hugging Face model
+`prithivMLmods/Deep-Fake-Detector-v2-Model`, a pretrained ViT-based binary
+image classifier. It analyzes the selected candidate image as a single frame
+or thumbnail; it does not perform temporal analysis of a full video. Accuracy
+is weaker for region-specific manipulation such as lip-sync or reenactment.
+
+The result is a probabilistic signal to consider alongside content
+corroboration and video-content flags. It is not a standalone verdict. If the
+dependencies or model weights are unavailable, the pipeline records an
+unavailable result and continues normally.
+
+## Known Limitations
+
+The deepfake classifier is experimental. Its accuracy is dataset-dependent and
+is not guaranteed to generalize to every manipulation type or image source.
 
 
 ## Ethereum Sepolia Anchoring
@@ -176,4 +203,4 @@ This fetches the transaction from Sepolia via RPC, decodes the `data` field, com
 
 ```bash
 python -m blockchain.testnet_anchor anchor <evidence_hash>
-```
+```
