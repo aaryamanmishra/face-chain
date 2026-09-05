@@ -86,6 +86,14 @@ from blockchain.verify import verify_evidence, VerificationResult
 from utils.hashing import generate_hash, hash_file
 from utils.social_media import annotate_platform, filter_social_media, is_specific_post
 
+# Testnet anchoring — optional; gracefully absent when web3 is not installed.
+try:
+    from blockchain.testnet_anchor import anchor_hash as _anchor_hash  # noqa: PLC0415
+    _TESTNET_ANCHOR_AVAILABLE = True
+except ImportError:
+    _TESTNET_ANCHOR_AVAILABLE = False
+    logger.debug("web3 not installed — Sepolia anchoring will be skipped.")
+
 # ---------------------------------------------------------------------------
 # Directory setup
 # ---------------------------------------------------------------------------
@@ -425,6 +433,21 @@ def run_pipeline(
     blockchain_status = verification.status_string
     logger.info("     Blockchain: %s | %s", blockchain_status, verification.message)
 
+    # ─────────────────────── Step 11: anchor to Ethereum Sepolia (optional)
+    sepolia_tx_hash: str | None = None
+    if _TESTNET_ANCHOR_AVAILABLE:
+        logger.info("[10/10] Anchoring evidence hash to Ethereum Sepolia testnet…")
+        _result = _anchor_hash(evidence_hash)
+        sepolia_tx_hash = _result if _result else None
+        if sepolia_tx_hash:
+            print(f"\n  Sepolia TX : {sepolia_tx_hash}")
+            print(f"  Etherscan  : https://sepolia.etherscan.io/tx/{sepolia_tx_hash}\n")
+        else:
+            logger.warning(
+                "     Sepolia anchoring skipped (see warnings above). "
+                "Local pipeline result is unaffected."
+            )
+
     # ─────────────────────────────────────── Compile final result
     elapsed = round(time.perf_counter() - t0, 2)
 
@@ -496,6 +519,12 @@ def run_pipeline(
             "status": blockchain_status,
             "chain_length": bc.length,
             "chain_file": str(bc._chain_path),
+            # Sepolia anchoring (None when skipped or web3 unavailable)
+            "sepolia_tx_hash": sepolia_tx_hash,
+            "sepolia_etherscan": (
+                f"https://sepolia.etherscan.io/tx/{sepolia_tx_hash}"
+                if sepolia_tx_hash else None
+            ),
         },
     }
 

@@ -22,3 +22,6 @@ flask-cors>=4.0.1
 python-dotenv>=1.0.1
 tqdm>=4.66.4
 colorlog>=6.8.2
+
+# Blockchain / Testnet anchoring
+web3>=6.15.0
