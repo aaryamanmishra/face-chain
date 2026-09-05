@@ -73,6 +73,61 @@ Blockchain Integrity Verification
 Ethereum Sepolia Anchoring
 ```
 
+## Usage
+
+### 1. Installation
+
+Install the Python dependencies (Python 3.11+ recommended):
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Configuration
+
+Copy the example environment file and fill in your keys:
+
+```bash
+cp .env.example .env
+```
+
+You must provide:
+- `SERPAPI_KEY`: Your key for Google Lens reverse-image search (get one at [SerpAPI](https://serpapi.com/)).
+- `PRIVATE_KEY`: Your Ethereum test wallet private key (for Sepolia anchoring).
+- `RPC_URL`: The RPC endpoint for the Sepolia testnet.
+
+### 3. Running the Pipeline
+
+To run the pipeline on an image, simply pass the image path to `app.py`:
+
+```bash
+python app.py --image path/to/your/image.jpg
+```
+
+The pipeline will automatically:
+1. Extract face embeddings.
+2. Search for the face online.
+3. Verify the candidates and rank them.
+4. Generate an evidence hash and save it to the local blockchain (`chain/blockchain.json`).
+5. Send a transaction to the Sepolia testnet to anchor the hash.
+
+### 4. Verifying on the Blockchain
+
+At the end of the pipeline run, the console output will display the **Sepolia TX Hash** and the **Evidence Hash**. You can also find these in `results/result.json`.
+
+To cryptographically verify that the evidence on the blockchain matches your local run, use the built-in CLI:
+
+```bash
+python -m blockchain.testnet_anchor verify <tx_hash> <evidence_hash>
+```
+
+Or, you can use the `check.py` script to automatically verify the latest run from `result.json`:
+
+```bash
+python check.py
+```
+
+
 ## Ethereum Sepolia Anchoring
 
 The evidence hash computed during the pipeline can be optionally anchored to the **Ethereum Sepolia testnet** — a public, permissionless EVM testnet — providing immutable, externally-verifiable proof that the evidence record existed at a specific point in time.
