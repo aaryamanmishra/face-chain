@@ -712,7 +712,19 @@ def _print_summary(result: dict[str, Any]) -> None:
     print(f"  Evidence URL       : {ev.get('matched_url', 'N/A')}")
     print(f"  Evidence Platform  : {ev.get('platform', 'General Web')}")
     print(f"  Evidence Similarity: {ev.get('similarity', 0):.4f}")
-    deepfake = ev.get("deepfake_analysis", {})
+    content_corroboration = ev.get("content_corroboration") or "unavailable"
+    is_video_content = ev.get("is_video_content")
+    video_content_text = (
+        "Yes" if is_video_content is True
+        else "No" if is_video_content is False
+        else "unavailable"
+    )
+    print(f"  Content Corroboration : {content_corroboration}")
+    print(f"  Is Video Content       : {video_content_text}")
+    if is_video_content is True:
+        frame_note = ev.get("frame_extraction_note") or "unavailable"
+        print(f"  Frame Extraction Note  : {frame_note}")
+    deepfake = ev.get("deepfake_analysis") or {}
     deepfake_status = "available" if deepfake.get("deepfake_analysis_available") else "unavailable"
     deepfake_label = deepfake.get("predicted_label") or "N/A"
     deepfake_confidence = deepfake.get("confidence")
