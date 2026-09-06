@@ -310,6 +310,6 @@ face-chain/
 
 * **Event:** Hacker House Goa 2026
 * **Task:** Task #3 — Face Identification & Blockchain Verification
-* **Team:** [TEAM NAME] - Code Cortex
+* **Team:** Code Cortex
 * **Repository:** [https://github.com/aaryamanmishra/face-chain](https://github.com/aaryamanmishra/face-chain)
 * **Demo Video:** [Working Screen Recording Link]
