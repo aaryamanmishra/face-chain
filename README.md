@@ -325,3 +325,7 @@ face-chain/
 * **Team:** Code Cortex
 * **Repository:** [https://github.com/aaryamanmishra/face-chain](https://github.com/aaryamanmishra/face-chain)
 * **Demo Video:** [Working Screen Recording Link]
+
+## License
+
+No `LICENSE` file is currently included in this repository. Until a license is added, the code does not have an explicit open-source reuse license.
