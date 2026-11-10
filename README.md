@@ -324,7 +324,7 @@ face-chain/
 * **Task:** Task #3 — Face Identification & Blockchain Verification
 * **Team:** Code Cortex
 * **Repository:** [https://github.com/aaryamanmishra/face-chain](https://github.com/aaryamanmishra/face-chain)
-* **Demo Video:** [Working Screen Recording Link]
+* **Demo Video:** Not currently linked in this repository.
 
 ## License
 
