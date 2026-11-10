@@ -112,6 +112,18 @@ To satisfy the hackathon prompt with production-grade rigor, `face-chain` implem
 
 ---
 
+## Responsible Use & Privacy
+
+**face-chain is an experimental research prototype, not an identity-verification authority or a production forensic system.** Facial similarity scores and reverse-image search results are probabilistic signals; they do not establish that two images depict the same person.
+
+Use the system only with images you are authorised to process and, where applicable, the subject's informed consent. Do not use it to identify, locate, profile, monitor, or investigate people without a lawful and appropriate basis. Do not use its output as the sole basis for employment, education, financial, legal, law-enforcement, access-control, or other consequential decisions.
+
+Facial embeddings and source images are sensitive biometric data. Avoid uploading images of other people to third-party services unless you have the necessary permission and have reviewed the provider's data-handling terms. Keep API credentials and local evidence files private; do not commit real people's images, embeddings, personal information, or investigation records.
+
+Search matches can be incorrect, incomplete, outdated, or manipulated. Deepfake scores are not proof of authenticity or manipulation. Independently verify every result, preserve uncertainty, and provide a way to correct or remove improperly associated information.
+
+---
+
 ## 🚀 Quickstart & How to Run
 
 ### 1. Prerequisites
